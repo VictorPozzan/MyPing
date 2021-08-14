@@ -2,83 +2,64 @@ import socket
 import os
 import struct
 import time
+import select
 
 
-def checksum(analyse_string):
-    sum = 0
-    countTo = (len(analyse_string)/2)*2
-    count = 0
-    while count < countTo:
-        thisVal = ord(analyse_string[count + 1])*256 + ord(analyse_string[count])
-        sum = sum + thisVal
-        sum = sum & 0xffffffff
-        count = count + 2
 
-    if countTo < len(analyse_string):
-        sum = sum + ord(analyse_string[len(analyse_string) - 1])
-        sum = sum & 0xffffffff
+def checksum(bytes_header):
+    size = len(bytes_header) #
+    sum_bytes = 0
 
-    sum = (sum >> 16) + (sum & 0xffff)
-    sum = sum + (sum >> 16)
-    answer = ~sum
-    answer = answer & 0xffff
+    for i in range(0, size - (size % 2), 2):
+        sum_bytes += (bytes_header[i]) + ((bytes_header[i+1]) << 8)
+    
+    if size % 2:
+        sum_bytes += (bytes_header[-1])
 
-    # Swap bytes. Bugger me if I know why.
+    sum_bytes = (sum_bytes >> 16) + (sum_bytes & 0xffff)
+    sum_bytes += (sum_bytes >> 16) 
+    answer = ~sum_bytes & 0xffff
     answer = answer >> 8 | (answer << 8 & 0xff00)
 
     return answer
 
-def source_string(my_id):
-    # 8 is the icmp echo request, checksum = 0
-    bytes_header = struct.pack("bbHHh", 8, 0, 0, my_id, 1)
-    string_header = bytes_header.decode("latin-1")
-
-    bytesInDouble = struct.calcsize("d")
-    
-    #calc to know where data init
-    data = (192 - bytesInDouble) * "U"
-    byte_struct = struct.pack("d", time.time())
-    string_struct = byte_struct.decode("latin-1")
-    
-    data =  string_struct + data 
-    
-    return string_header + data, data
-    
 
 
-def send_ping(my_socket, dest, my_id):
-    dest_host = socket.gethostbyname(dest)
-    print(dest_host)
+def convert_header(header_type,header_code,header_checksum,header_identifier,header_sequence_number,header_payload):
+    #converte o cabeçalho para binário
+    bytes_header = struct.pack('>BBHHH32s',header_type,header_code,header_checksum,header_identifier,header_sequence_number,header_payload)
+    #faz o checksum
+    data_checksum = checksum(bytes_header) 
+    packet = struct.pack('>BBHHH32s',header_type,header_code,data_checksum,header_identifier,header_sequence_number,header_payload)
 
-    analyse_string, data = source_string(my_id)
-
-    my_checksum = checksum(analyse_string)
-    myChecksum = socket.htons(my_checksum)
-    bytes_header = struct.pack("bbHHh", 8, 0, myChecksum, my_id, 1)
-    string_header = bytes_header.decode("latin-1")
-    packet = string_header + data
-
-
-    my_socket.sendto(str.encode(packet), (dest, 1))
+    return packet
 
 def ping(dest):
-    count = 5 #five ping requests
-    timeout = 2
+    count = 5  #cinco requisições de ping
     
-    for i in range(count):
-        print("ping ", dest)
-        try:
-            icmp = socket.getprotobyname("icmp")
-            my_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, icmp)
-            my_id = os.getpid() #& 0xFFFF
-            #enviar o ping 
-            send_ping(my_socket, dest, my_id)
+    # Coverte o nome para endereço ipv4 (retorna uma string no formato ipv4)
+    dest_ipv4 = socket.gethostbyname(dest)
+    print("Ping ", dest, " [", dest_ipv4,"]")
 
-        except socket.gaierror:
-            print("error")
-            break
-            
+    #var do cabeçalho
+    header_type = 8 #echo request ICMP 
+    header_code = 0 #code
+    header_checksum = 0
+    header_identifier = 0 
+    header_sequence_number = 1
+    header_payload = b'trabalhoDeRedes2021'
     
+
+
+    for i in range(count):
+        header_sequence_number = i + header_sequence_number
+        packet = convert_header(header_type, header_code, header_checksum, header_identifier, header_sequence_number, header_payload)
+        #conectar com o socket
+        send_request_ping_time,rawsocket,addr = raw_socket(dest_ipv4, packet)
+
+
+        print("ping ", dest)
+
 
 if __name__=="__main__":
-    ping("google.com")
+    ping("www.google.com")
