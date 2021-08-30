@@ -10,6 +10,7 @@ class Ping_Data:
         self.avgtime = 0
         self.count = 0
 
+
     def print_ping(self, ping_time, dest_ipv4):
         self.count += 1 
         if ping_time > 0: #há uma resposta
@@ -25,8 +26,6 @@ class Ping_Data:
             self.lost += 1
             print("Request timed out")  
             
-            
-        
 
     def statistics_ping(self, dest_ipv4):
         if self.accept == 0:

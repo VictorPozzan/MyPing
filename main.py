@@ -8,7 +8,7 @@ from ping_data import Ping_Data
 
 
 def checksum(bytes_header):
-    size = len(bytes_header) #
+    size = len(bytes_header) 
     sum_bytes = 0
 
     for i in range(0, size - (size % 2), 2):
